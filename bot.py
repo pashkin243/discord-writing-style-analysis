@@ -44,7 +44,7 @@ async def on_message(message: discord.Message):
         await message.channel.send(
             "Here is a list of my commands:\n\n" \
             "**!collect on**\n" \
-            "Turns on active collecting of **new* messages sent in the channel.\n\n" \
+            "Turns on active collecting of **new** messages sent in the channel.\n\n" \
             "**!collect off**\n" \
             "Turns off the active collecting of messages in the channel.\n\n" \
             "**!collect status**\n" \
