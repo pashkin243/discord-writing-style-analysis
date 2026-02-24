@@ -9,6 +9,17 @@ collecting_channels: set[int] = set()
 # kanal id - sõnumite counter
 message_counts: dict[int, int] = {}
 
+# maksimaalne lugemine (tagasi)
+MAX_BACKFILL = 1000
+# abifunktsioon
+def should_collect_text(content: str) -> bool:
+    c = (content or "").strip()
+    if not c:
+        return False
+    if c.startswith(("!", "/", ".")):
+        return False
+    return True
+
 @client.event
 async def on_ready():
     print(f"Logged in as user {client.user}")
@@ -27,7 +38,7 @@ async def on_message(message: discord.Message):
     if content.lower() == "!test":
         await message.channel.send("tere tere")
         return
-    
+
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
     if content.lower() == "!collect on":
         collecting_channels.add(channel_id)
@@ -52,10 +63,54 @@ async def on_message(message: discord.Message):
         await message.channel.send(f"Messages collected in this channel: **{count}**")
         return
     
+    # viimaste sõnumite kogumine
+    if content.lower().startswith("!collect last"):
+        parts = content.split()
+        # vea handling
+        if len(parts) != 3:
+            await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150*)")
+
+        try:
+            n = int(parts[2])
+        except ValueError:
+            await message.channel.send("Invalid command. Provide a valid number.")
+            return
+        
+        if n < 1:
+            await message.channel.send("Number must be at least 1.")
+            return
+        
+        if n > MAX_BACKFILL:
+            await message.channel.send(f"Error: Maximum number of messages is {MAX_BACKFILL}.")
+            return
+        
+        collected = 0
+        # fetchib kanali ajaloo, seatud limiidiga
+        async for msg in message.channel.history(limit=n):
+            if msg.author.bot:
+                continue # ei kogu boti saadetut
+            if msg.id == message.id:
+                continue # ei kogu käsusõnumit
+            text = (msg.content or "").strip()
+            if not should_collect_text(text):
+                continue
+
+            message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
+            collected += 1
+
+            print(
+                f"[BACKFILL #{message_counts[channel_id]}] "
+                f"#{msg.channel} | {msg.author}: {text}",
+                flush=True
+            )
+        
+        await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in this channel.")
+        return
+    
     # --- KOGUMINE (test, lihtsalt printimine)
     if channel_id in collecting_channels:
         # käskude eemaldamine
-        if content.startswith(("!", "/", ".")):
+        if not should_collect_text(content):
             return
         message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
         print(
