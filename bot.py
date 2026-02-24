@@ -32,6 +32,7 @@ async def on_message(message: discord.Message):
     if content.lower() == "!collect on":
         collecting_channels.add(channel_id)
         await message.channel.send("Collecting **enabled** in this channel. Type **!collect off** to disable.")
+        return
 
     # kogumise välja lülitamine
     if content.lower() == "!collect off":
@@ -54,7 +55,7 @@ async def on_message(message: discord.Message):
     # --- KOGUMINE (test, lihtsalt printimine)
     if channel_id in collecting_channels:
         # käskude eemaldamine
-        if content.startswith("!"):
+        if content.startswith(("!", "/", ".")):
             return
         message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
         print(
