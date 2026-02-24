@@ -6,6 +6,8 @@ client = discord.Client(intents=intents)
 
 # kanal id - kogumine sees
 collecting_channels: set[int] = set()
+# kanal id - sõnumite counter
+message_counts: dict[int, int] = {}
 
 @client.event
 async def on_ready():
@@ -43,9 +45,20 @@ async def on_message(message: discord.Message):
         await message.channel.send(f"Collecting in this channel currently: **{status}**")
         return
     
+    # stats - mitu sõnumit kogutud
+    if content.lower() == "!stats":
+        count = message_counts.get(channel_id, 0)
+        await message.channel.send(f"Messages collected in this channel: **{count}**")
+        return
+    
     # --- KOGUMINE (test, lihtsalt printimine)
     if channel_id in collecting_channels:
         # käskude eemaldamine
         if content.startswith("!"):
             return
-        print(f"[COLLECT] #{message.channel} | {message.author}: {content}")
+        message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
+        print(
+            f"[COLLECT #{message_counts[channel_id]}] "
+            f"#{message.channel} | {message.author}: {content}",
+            flush=True
+        )
