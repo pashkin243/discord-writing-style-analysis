@@ -38,6 +38,23 @@ async def on_message(message: discord.Message):
     if content.lower() == "!test":
         await message.channel.send("tere tere")
         return
+    
+    #help käsk - prindib välja, mis käsud on.
+    if content.lower() == "!help":
+        await message.channel.send(
+            "Here is a list of my commands:\n\n" \
+            "**!collect on**\n" \
+            "Turns on active collecting of **new* messages sent in the channel.\n\n" \
+            "**!collect off**\n" \
+            "Turns off the active collecting of messages in the channel.\n\n" \
+            "**!collect status**\n" \
+            "Displays whether active collecting of messages in the channel is ON or OFF.\n\n" \
+            "**!collect last [number]**\n" \
+            "Collects the last X amount of messages sent in this channel. Maximum is 1000.\n\n" \
+            "**!stats**\n" \
+            "Shows the total number of messages collected from this channel."
+        )
+        return
 
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
     if content.lower() == "!collect on":
