@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS messages (
     channel_id BIGINT NOT NULL,
     author_id BIGINT NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON messages(channel_id);
@@ -42,8 +42,8 @@ async def insert_message(
     async with _pool.acquire() as conn:
         result = await conn.execute(
             """
-            INSERT INTO messages(message_id, guild_id, channel_id, author_id, content, created_at, is_backfill)
-            VALUES ($1,$2,$3,$4,$5,$6,$7)
+            INSERT INTO messages(message_id, guild_id, channel_id, author_id, content, created_at)
+            VALUES ($1,$2,$3,$4,$5,$6)
             ON CONFLICT (message_id) DO NOTHING
             """,
             message_id,
