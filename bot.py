@@ -114,16 +114,17 @@ async def on_message(message: discord.Message):
                 continue # ei kogu käsusõnumit
             text = (msg.content or "").strip()
             if not should_collect_text(text):
-                inserted = await db.insert_message(
-                    message_id=msg.id,
-                    guild_id=msg.guild.id if msg.guild else None,
-                    channel_id=channel_id,
-                    author_id=msg.author.id,
-                    content=text,
-                    created_at=msg.created_at,
-                )
-                if not inserted:
-                    continue
+                continue
+            inserted = await db.insert_message(
+                message_id=msg.id,
+                guild_id=msg.guild.id if msg.guild else None,
+                channel_id=channel_id,
+                author_id=msg.author.id,
+                content=text,
+                created_at=msg.created_at,
+            )
+            if not inserted:
+                continue
 
             message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
             collected += 1
