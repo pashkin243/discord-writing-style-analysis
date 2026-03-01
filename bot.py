@@ -86,7 +86,8 @@ async def on_message(message: discord.Message):
         # vea handling
         if len(parts) != 3:
             await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150*)")
-
+            return
+        
         try:
             n = int(parts[2])
         except ValueError:
