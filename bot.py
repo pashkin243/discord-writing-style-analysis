@@ -1,4 +1,5 @@
 import discord
+import db
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -22,7 +23,9 @@ def should_collect_text(content: str) -> bool:
 
 @client.event
 async def on_ready():
-    print(f"Logged in as user {client.user}")
+    await db.init_db()
+    print(f"Logged in as user {client.user}", flush=True)
+    print("DB ready", flush=True)
 
 @client.event
 async def on_message(message: discord.Message):
