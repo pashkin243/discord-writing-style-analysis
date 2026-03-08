@@ -142,30 +142,6 @@ async def on_message(message: discord.Message):
         await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in this channel.")
         return
     
-    # --- KOGUMINE (test, lihtsalt printimine)
-    if channel_id in collecting_channels:
-        # käskude eemaldamine
-        if not should_collect_text(content):
-            return
-        # db jaoks plokk
-        inserted = await db.insert_message(
-            message_id=message.id,
-            guild_id=message.guild.id if message.guild else None,
-            channel_id=channel_id,
-            author_id=message.author.id,
-            content=content,
-            created_at=message.created_at,
-        )
-        if not inserted:
-            return
-        # lugemine
-        message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
-        print(
-            f"[COLLECT #{message_counts[channel_id]}] "
-            f"#{message.channel} | {message.author}: {content}",
-            flush=True
-        )
-    
     #!profile, näitab kanali või isiku sõnumite statistikat
     if content.lower().startswith("!profile"):
         target_user = None
@@ -191,3 +167,27 @@ async def on_message(message: discord.Message):
             f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**"
         )
         return
+
+    # --- KOGUMINE (test, lihtsalt printimine)
+    if channel_id in collecting_channels:
+        # käskude eemaldamine
+        if not should_collect_text(content):
+            return
+        # db jaoks plokk
+        inserted = await db.insert_message(
+            message_id=message.id,
+            guild_id=message.guild.id if message.guild else None,
+            channel_id=channel_id,
+            author_id=message.author.id,
+            content=content,
+            created_at=message.created_at,
+        )
+        if not inserted:
+            return
+        # lugemine
+        message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
+        print(
+            f"[COLLECT #{message_counts[channel_id]}] "
+            f"#{message.channel} | {message.author}: {content}",
+            flush=True
+        )
