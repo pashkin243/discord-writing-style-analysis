@@ -56,6 +56,10 @@ async def on_message(message: discord.Message):
             "Collects the last X amount of messages sent in this channel. Maximum is 1000.\n\n" \
             "**!stats**\n" \
             "Shows the total number of messages collected from this channel."
+            "**!profile**\n" \
+            "Shows several statistics for the messages sent in this channel. \n" \
+            "**!profile @Profile**\n" \
+            "Shows several statistics for the messages sent in this channel by the mentioned user."
         )
         return
 
@@ -161,3 +165,29 @@ async def on_message(message: discord.Message):
             f"#{message.channel} | {message.author}: {content}",
             flush=True
         )
+    
+    #!profile, näitab kanali või isiku sõnumite statistikat
+    if content.lower().startswith("!profile"):
+        target_user = None
+        # kas kasutaja on mainitud?
+        if message.mentions:
+            target_user = message.mentions[0]
+        if target_user:
+            profile = await db.get_profile(channel_id, target_user.id)
+            name = target_user.display_name
+        else:
+            profile = await db.get_profile(channel_id)
+            name = f"#{message.channel.name}"
+        if profile is None:
+            await message.channel.send("No messages found!")
+            return
+        await message.channel.send(
+            f"Profile for **{name}**\n\n"
+            f"Total messages: **{profile['messages']}**\n"
+            f"Average message length: **{profile['avg_length']:.1f} characters**\n"
+            f"Average words per message: **{profile['avg_words']:.1f}**\n"
+            f"Exclamation marks per message: **{profile['exclamations_per_msg']:.2f}**\n"
+            f"Question marks per message: **{profile['questions_per_msg']:.2f}**\n"
+            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**"
+        )
+        return
