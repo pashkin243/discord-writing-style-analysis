@@ -62,3 +62,49 @@ async def count_messages(channel_id: int) -> int:
             "SELECT COUNT(*) FROM messages WHERE channel_id = $1",
             channel_id
         )
+
+# Kanali profiili statistika arvutamine
+async def get_profile(channel_id: int, author_id: int | None = None) -> dict | None:
+    assert _pool is not None, "DB not initialized"
+    async with _pool.acquire() as conn:
+        if author_id is None:
+            rows = await conn.fetch(
+                "SELECT content FROM messages WHERE channel_id = $1",
+                channel_id
+            )
+        else:
+            rows = await conn.fetch(
+                "SELECT content FROM messages WHERE channel_id = $1 AND author_id = $2",
+                channel_id,
+                author_id
+            )
+        if not rows:
+            return None
+# statistika arvutamine
+        messages = [r["content"] for r in rows]
+
+        total_messages = len(messages)
+        total_chars = sum(len(m) for m in messages)
+        total_words = sum(len(m.split()) for m in messages)
+        exclamations = sum(m.count("!") for m in messages)
+        questions = sum(m.count("?") for m in messages)
+        uppercase_chars = sum(
+            sum(1 for c in m if c.isupper())
+            for m in messages
+        )
+        letters = sum(
+            sum(1 for c in m if c.isalpha())
+            for m in messages
+        )
+        avg_length = total_chars / total_messages
+        avg_words = total_words / total_messages
+        uppercase_ratio = (uppercase_chars / letters) if letters > 0 else 0
+
+        return {
+            "messages": total_messages,
+            "avg_length": avg_length,
+            "avg_words": avg_words,
+            "exclamations_per_msg": exclamations / total_messages,
+            "questions_per_msg": questions / total_messages,
+            "uppercase_ratio": uppercase_ratio
+        }
