@@ -55,10 +55,10 @@ async def on_message(message: discord.Message):
             "**!collect last [number]**\n" \
             "Collects the last X amount of messages sent in this channel. Maximum is 1000.\n\n" \
             "**!stats**\n" \
-            "Shows the total number of messages collected from this channel."
+            "Shows the total number of messages collected from this channel.\n\n" \
             "**!profile**\n" \
-            "Shows several statistics for the messages sent in this channel. \n" \
-            "**!profile @Profile**\n" \
+            "Shows several statistics for the messages sent in this channel. \n\n" \
+            "**!profile @User**\n" \
             "Shows several statistics for the messages sent in this channel by the mentioned user."
         )
         return
