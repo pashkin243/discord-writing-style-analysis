@@ -22,6 +22,12 @@ def should_collect_text(content: str) -> bool:
         return False
     return True
 
+#abifunktsioon - refereerida kanalitele teisest kanalist
+def get_target_channel(message: discord.Message) -> discord.abc.GuildChannel:
+    if message.channel_mentions:
+        return message.channel_mentions[0]
+    return message.channel
+
 @client.event
 async def on_ready():
     await db.init_db()
@@ -34,6 +40,7 @@ async def on_message(message: discord.Message):
         return
     
     content = (message.content or "").strip()
+    tokens = content.lower().split()
     channel_id = message.channel.id
 
     # --- KÄSUD
@@ -65,42 +72,54 @@ async def on_message(message: discord.Message):
         return
 
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
-    if content.lower() == "!collect on":
-        collecting_channels.add(channel_id)
-        await message.channel.send("Collecting **enabled** in this channel. Type **!collect off** to disable.")
+    if tokens[:2] == ["!collect", "on"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        collecting_channels.add(target_channel_id)
+        await message.channel.send(f"Collecting **enabled** in {target_channel.mention}. Type **!collect off** {target_channel.mention} to disable.")
         return
 
     # kogumise välja lülitamine
-    if content.lower() == "!collect off":
-        collecting_channels.discard(channel_id)
-        await message.channel.send("Collecting **disabled** in this channel. Type **!collect on** to enable.")
+    if tokens[:2] == ["!collect", "off"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        collecting_channels.discard(target_channel_id)
+        await message.channel.send(f"Collecting **disabled** in {target_channel.mention}. Type **!collect on** {target_channel.mention} to enable.")
         return
     
     # kogumise staatuse kontroll
-    if content.lower() == "!collect status":
-        status = "ON" if channel_id in collecting_channels else "OFF"
-        await message.channel.send(f"Collecting in this channel currently: **{status}**")
+    if tokens[:2] == ["!collect", "status"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        status = "ON" if target_channel_id in collecting_channels else "OFF"
+        await message.channel.send(f"Collecting in {target_channel.mention} currently: **{status}**")
         return
     
     # stats - mitu sõnumit kogutud
-    if content.lower() == "!stats":
-        count = await db.count_messages(channel_id)
-        await message.channel.send(f"Messages collected in this channel: **{count}**")
+    if tokens[:1] == ["!stats"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        count = await db.count_messages(target_channel_id)
+        await message.channel.send(f"Messages collected in {target_channel.mention}: **{count}**")
         return
     
     # viimaste sõnumite kogumine
-    if content.lower().startswith("!collect last"):
-        parts = content.split()
-        # vea handling
-        if len(parts) != 3:
-            await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150*)")
+    if tokens[:2] == ["!collect", "last"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+
+        tokens = content.split()
+        number_token = None
+        for token in tokens:
+            if token.isdigit():
+                number_token = token
+                break
+        
+        if number_token is None:
+            await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150 #channel*)")
             return
         
-        try:
-            n = int(parts[2])
-        except ValueError:
-            await message.channel.send("Invalid command. Provide a valid number.")
-            return
+        n = int(number_token)
         
         if n < 1:
             await message.channel.send("Number must be at least 1.")
@@ -112,7 +131,7 @@ async def on_message(message: discord.Message):
         
         collected = 0
         # fetchib kanali ajaloo, seatud limiidiga
-        async for msg in message.channel.history(limit=n):
+        async for msg in target_channel.history(limit=n):
             if msg.author.bot:
                 continue # ei kogu boti saadetut
             if msg.id == message.id:
@@ -123,7 +142,7 @@ async def on_message(message: discord.Message):
             inserted = await db.insert_message(
                 message_id=msg.id,
                 guild_id=msg.guild.id if msg.guild else None,
-                channel_id=channel_id,
+                channel_id=target_channel_id,
                 author_id=msg.author.id,
                 content=text,
                 created_at=msg.created_at,
@@ -131,30 +150,33 @@ async def on_message(message: discord.Message):
             if not inserted:
                 continue
 
-            message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
+            message_counts[target_channel_id] = message_counts.get(target_channel_id, 0) + 1
             collected += 1
 
             print(
-                f"[BACKFILL #{message_counts[channel_id]}] "
+                f"[BACKFILL #{message_counts[target_channel_id]}] "
                 f"#{msg.channel} | {msg.author}: {text}",
                 flush=True
             )
         
-        await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in this channel.")
+        await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in {target_channel.mention}.")
         return
     
     #!profile (v2), näitab kanali või isiku sõnumite statistikat
-    if content.lower().startswith("!profile"):
+    if tokens[:1] == ["!profile"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+
         target_user = None
         # kas kasutaja on mainitud?
         if message.mentions:
             target_user = message.mentions[0]
         if target_user:
-            messages = await db.get_messages(channel_id, target_user.id)
-            name = target_user.display_name
+            messages = await db.get_messages(target_channel_id, target_user.id)
+            name = f"{target_user.display_name} in {target_channel.mention}"
         else:
-            messages = await db.get_messages(channel_id)
-            name = f"#{message.channel.name}"
+            messages = await db.get_messages(target_channel_id)
+            name = target_channel.mention
         
         #style.py integratsioon
         profile = style.build_style_profile(messages)
