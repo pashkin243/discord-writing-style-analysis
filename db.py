@@ -118,7 +118,7 @@ async def get_profile(channel_id: int, author_id: int | None = None) -> dict | N
         }
 
 # sõnumite fetchimine, kuni 1000 tükki
-async def get_messages(channel_id: int, author_id: int | None = None, limit: int = 1000) -> list[str]:
+async def get_messages(channel_id: int, author_id: int | None = None, limit: int = 10000) -> list[str]:
     assert _pool is not None, "DB not initialized"
 
     async with _pool.acquire() as conn:
