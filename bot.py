@@ -13,7 +13,7 @@ collecting_channels: set[int] = set()
 message_counts: dict[int, int] = {}
 
 # maksimaalne lugemine (tagasi)
-MAX_BACKFILL = 1000
+MAX_BACKFILL = 2000
 # abifunktsioon - mida (mitte) sisse lugeda
 def should_collect_text(content: str) -> bool:
     c = (content or "").strip()
