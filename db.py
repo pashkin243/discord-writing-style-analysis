@@ -55,6 +55,14 @@ async def insert_message(
         )
         return result.endswith("1")
     
+async def wipe_channel(channel_id: int) -> None:
+    assert _pool is not None, "DB not initialized"
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM messages WHERE channel_id = $1",
+            channel_id
+        )
+    
 async def count_messages(channel_id: int) -> int:
     assert _pool is not None, "DB not initialized"
     async with _pool.acquire() as conn:

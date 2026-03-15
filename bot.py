@@ -1,6 +1,7 @@
 import discord
 import db
 import style
+import re
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -13,12 +14,14 @@ message_counts: dict[int, int] = {}
 
 # maksimaalne lugemine (tagasi)
 MAX_BACKFILL = 1000
-# abifunktsioon
+# abifunktsioon - mida (mitte) sisse lugeda
 def should_collect_text(content: str) -> bool:
     c = (content or "").strip()
     if not c:
         return False
     if c.startswith(("!", "/", ".")):
+        return False
+    if re.search(r"https?://\S+", c):
         return False
     return True
 
@@ -69,6 +72,15 @@ async def on_message(message: discord.Message):
             "**!profile @User**\n" \
             "Shows several statistics for the messages sent in this channel by the mentioned user."
         )
+        return
+
+    # kui vaja, siis saab databaasist kõik kustutada
+    if content.lower().startswith("!wipe"):
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        await db.wipe_channel(target_channel_id)
+        message_counts[target_channel_id] = 0
+        await message.channel.send(f"Wiped all collected messages for {target_channel.mention}.")
         return
 
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
