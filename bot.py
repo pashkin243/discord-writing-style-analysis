@@ -199,17 +199,41 @@ async def on_message(message: discord.Message):
         common_words_text = ", ".join(
             [f"{word} ({count})" for word, count in profile["common_words"]]
         )
+        common_bigrams_text = ", ".join(
+            [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
+        )
 
         await message.channel.send(
             f"**Profile for {name}**\n\n"
             f"Total messages: **{profile['messages']}**\n"
             f"Average message length: **{profile['avg_length']:.1f} characters**\n"
             f"Average words per message: **{profile['avg_words']:.1f}**\n"
-            f"Exclamation marks per message: **{profile['exclamations_per_msg']:.2f}**\n"
-            f"Question marks per message: **{profile['questions_per_msg']:.2f}**\n"
-            f"Periods per message: **{profile['periods_per_msg']:.2f}**\n"
-            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**\n"
-            f"Most common words: **{common_words_text}**"
+            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**\n\n"
+
+            f"**Punctuation**\n"
+            f"Exclamation marks (!) per message: **{profile['exclamations_per_msg']:.2f}**\n"
+            f"Question marks (?) per message: **{profile['questions_per_msg']:.2f}**\n"
+            f"Periods (.) per message: **{profile['periods_per_msg']:.2f}**\n"
+            f"Commas (,) per message: **{profile['commas_per_msg']:.2f}**\n"
+            f"Messages with commas: **{profile['comma_message_ratio']:.2%}**\n"
+            f"Average newlines per message: **{profile['avg_newlines_per_msg']:.2f}**\n\n"
+
+            f"**Punctuation run style**\n"
+            f"Exclamation mark run rate: **{profile['exclamation_run_rate']:.2%}**\n"
+            f"Average exclamation mark run length: **{profile['avg_exclamation_run_length']:.2f}**\n"
+            f"Max exclamation mark run length: **{profile['max_exclamation_run_length']}**\n\n"
+
+            f"Question mark run rate: **{profile['question_run_rate']:.2%}**\n"
+            f"Average question mark run length: **{profile['avg_question_run_length']:.2f}**\n"
+            f"Max question mark run length: **{profile['max_question_run_length']}**\n\n"
+
+            f"Dot run rate: **{profile['dot_run_rate']:.2%}**\n"
+            f"Average dot run length: **{profile['avg_dot_run_length']:.2f}**\n"
+            f"Max dot run length: **{profile['max_dot_run_length']}**\n\n"
+
+            f"**Words**\n"
+            f"Most common words: **{common_words_text}**\n"
+            f"Most common bigrams: **{common_bigrams_text}**"
         )
         return
 
