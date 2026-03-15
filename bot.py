@@ -82,6 +82,38 @@ async def on_message(message: discord.Message):
         message_counts[target_channel_id] = 0
         await message.channel.send(f"Wiped all collected messages for {target_channel.mention}.")
         return
+    
+    # !commonwords 
+    if content.lower().startswith("!commonwords"):
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        target_user = None
+        if message.mentions:
+            target_user = message.mentions[0]
+        if target_user:
+            messages = await db.get_messages(target_channel_id, target_user.id)
+            name = f"{target_user.display_name} in {target_channel.mention}"
+        else:
+            messages = await db.get_messages(target_channel_id)
+            name = target_channel.mention
+        profile = style.build_style_profile(messages)
+
+        if profile is None:
+            await message.channel.send("No messages found!")
+            return
+        common_words_text = ", ".join(
+            [f"{word} ({count})" for word, count in profile["common_words"]]
+        )
+        common_bigrams_text = ", ".join(
+            [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
+        )
+
+        await message.channel.send(
+            f"**Common phrases for {name}**\n\n"
+            f"Top words:\n{common_words_text}\n\n"
+            f"Top phrases:\n{common_bigrams_text}"
+        )
+        return
 
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
     if tokens[:2] == ["!collect", "on"]:
