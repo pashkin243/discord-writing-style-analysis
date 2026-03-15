@@ -1,5 +1,6 @@
 import discord
 import db
+import style
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -142,29 +143,39 @@ async def on_message(message: discord.Message):
         await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in this channel.")
         return
     
-    #!profile, näitab kanali või isiku sõnumite statistikat
+    #!profile (v2), näitab kanali või isiku sõnumite statistikat
     if content.lower().startswith("!profile"):
         target_user = None
         # kas kasutaja on mainitud?
         if message.mentions:
             target_user = message.mentions[0]
         if target_user:
-            profile = await db.get_profile(channel_id, target_user.id)
+            messages = await db.get_messages(channel_id, target_user.id)
             name = target_user.display_name
         else:
-            profile = await db.get_profile(channel_id)
+            messages = await db.get_messages(channel_id)
             name = f"#{message.channel.name}"
+        
+        #style.py integratsioon
+        profile = style.build_style_profile(messages)
+
         if profile is None:
             await message.channel.send("No messages found!")
             return
+        common_words_text = ", ".join(
+            [f"{word} ({count})" for word, count in profile["common_words"]]
+        )
+
         await message.channel.send(
-            f"Profile for **{name}**\n\n"
+            f"**Profile for {name}**\n\n"
             f"Total messages: **{profile['messages']}**\n"
             f"Average message length: **{profile['avg_length']:.1f} characters**\n"
             f"Average words per message: **{profile['avg_words']:.1f}**\n"
             f"Exclamation marks per message: **{profile['exclamations_per_msg']:.2f}**\n"
             f"Question marks per message: **{profile['questions_per_msg']:.2f}**\n"
-            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**"
+            f"Periods per message: **{profile['periods_per_msg']:.2f}**\n"
+            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**\n"
+            f"Most common words: **{common_words_text}**"
         )
         return
 
