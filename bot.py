@@ -206,6 +206,50 @@ async def on_message(message: discord.Message):
         await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in {target_channel.mention}.")
         return
     
+    # kogu kõik sõnumid kanalis
+    if tokens[:2] == ["!collect", "all"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        collected = 0
+        progress_step = 10000
+        next_progress_mark = 10000
+
+        await message.channel.send(
+            f"Collecting all messages from {target_channel.mention}. This may take a **while**..."
+        )
+
+        async for msg in target_channel.history(limit=None):
+            if msg.author.bot:
+                continue
+            if msg.id == message.id:
+                continue
+            text = (msg.content or "").strip()
+            if not should_collect_text(text):
+                continue
+            inserted = await db.insert_message(
+                message_id=msg.id,
+                guild_id=msg.guild.id if msg.guild else None,
+                channel_id=target_channel_id,
+                author_id=msg.author.id,
+                content=text,
+                created_at=msg.created_at,
+            )
+            if not inserted:
+                continue
+
+            message_counts[target_channel_id] = message_counts.get(target_channel_id, 0) + 1
+            collected += 1
+            if collected >= next_progress_mark:
+                await message.channel.send(
+                    f"Collected **{collected}** messages from {target_channel.mention} so far... continuing."
+                )
+                next_progress_mark += progress_step
+        
+        await message.channel.send(
+            f"Done. Collected **{collected}** messages from {target_channel.mention}."
+        )
+        return
+    
     #!profile (v2), näitab kanali või isiku sõnumite statistikat
     if tokens[:1] == ["!profile"]:
         target_channel = get_target_channel(message)

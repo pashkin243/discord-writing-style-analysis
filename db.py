@@ -118,33 +118,57 @@ async def get_profile(channel_id: int, author_id: int | None = None) -> dict | N
         }
 
 # sõnumite fetchimine, kuni 1000 tükki
-async def get_messages(channel_id: int, author_id: int | None = None, limit: int = 10000) -> list[str]:
+async def get_messages(channel_id: int, author_id: int | None = None, limit: int | None = None) -> list[str]:
     assert _pool is not None, "DB not initialized"
 
     async with _pool.acquire() as conn:
         if author_id is None:
-            rows = await conn.fetch(
-                """
-                SELECT content
-                FROM messages
-                WHERE channel_id = $1
-                ORDER BY created_at DESC
-                LIMIT $2
-                """,
-                channel_id,
-                limit
-            )
+            if limit is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT content
+                    FROM messages
+                    WHERE channel_id = $1
+                    ORDER BY created_at DESC
+                    """,
+                    channel_id
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT content
+                    FROM messages
+                    WHERE channel_id = $1
+                    ORDER BY created_at DESC
+                    LIMIT $2
+                    """,
+                    channel_id,
+                    limit
+                )
         else:
-            rows = await conn.fetch(
-                """
-                SELECT content
-                FROM messages
-                WHERE channel_id = $1 AND author_id = $2
-                ORDER BY created_at DESC
-                LIMIT $3
-                """,
-                channel_id,
-                author_id,
-                limit
-            )
+            if limit is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT content
+                    FROM messages
+                    WHERE channel_id = $1 AND author_id = $2
+                    ORDER BY created_at DESC
+                    """,
+                    channel_id,
+                    author_id
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT content
+                    FROM messages
+                    WHERE channel_id = $1 AND author_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT $3
+                    """,
+                    channel_id,
+                    author_id,
+                    limit
+                )
+
     return [row["content"] for row in rows]
