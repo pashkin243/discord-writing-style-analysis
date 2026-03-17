@@ -2,6 +2,7 @@ import discord
 import db
 import style
 import re
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -210,15 +211,20 @@ async def on_message(message: discord.Message):
     if tokens[:2] == ["!collect", "all"]:
         target_channel = get_target_channel(message)
         target_channel_id = target_channel.id
+        starting_count = await db.count_messages(target_channel_id)
         collected = 0
+        processed = 0
         progress_step = 10000
-        next_progress_mark = 10000
+        next_progress_mark = ((starting_count // progress_step) + 1) * progress_step
 
         await message.channel.send(
             f"Collecting all messages from {target_channel.mention}. This may take a **while**..."
         )
 
         async for msg in target_channel.history(limit=None):
+            processed += 1
+            if processed % 500 == 0:
+                await asyncio.sleep(1)
             if msg.author.bot:
                 continue
             if msg.id == message.id:
@@ -226,6 +232,7 @@ async def on_message(message: discord.Message):
             text = (msg.content or "").strip()
             if not should_collect_text(text):
                 continue
+
             inserted = await db.insert_message(
                 message_id=msg.id,
                 guild_id=msg.guild.id if msg.guild else None,
@@ -239,14 +246,17 @@ async def on_message(message: discord.Message):
 
             message_counts[target_channel_id] = message_counts.get(target_channel_id, 0) + 1
             collected += 1
-            if collected >= next_progress_mark:
+
+            current_total = starting_count + collected
+            if current_total >= next_progress_mark:
                 await message.channel.send(
-                    f"Collected **{collected}** messages from {target_channel.mention} so far... continuing."
+                    f"Stored **{current_total}** messages for {target_channel.mention} so far... continuing."
                 )
                 next_progress_mark += progress_step
-        
+
         await message.channel.send(
-            f"Done. Collected **{collected}** messages from {target_channel.mention}."
+            f"Done. Newly collected in this run: **{collected}**. "
+            f"Total stored for {target_channel.mention}: **{starting_count + collected}**."
         )
         return
     
