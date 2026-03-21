@@ -85,7 +85,7 @@ async def on_message(message: discord.Message):
         return
     
     # !commonwords 
-    if content.lower().startswith("!commonwords"):
+    if tokens[:1] == ["!commonwords"]:
         target_channel = get_target_channel(message)
         target_channel_id = target_channel.id
         target_user = None
@@ -108,11 +108,17 @@ async def on_message(message: discord.Message):
         common_bigrams_text = ", ".join(
             [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
         )
+        common_emojis_text = ", ".join(
+            [f"{emoji} ({count})" for emoji, count in profile["common_emojis"]]
+        )
+        if not common_emojis_text:
+            common_emojis_text = "No emojis found."
 
         await message.channel.send(
             f"**Common phrases for {name}**\n\n"
             f"Top words:\n{common_words_text}\n\n"
-            f"Top phrases:\n{common_bigrams_text}"
+            f"Top phrases:\n{common_bigrams_text}\n\n"
+            f"Top emojis:\n{common_emojis_text}"
         )
         return
 
@@ -288,6 +294,11 @@ async def on_message(message: discord.Message):
         common_bigrams_text = ", ".join(
             [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
         )
+        common_emojis_text = ", ".join(
+            [f"{emoji} ({count})" for emoji, count in profile["common_emojis"]]
+        )
+        if not common_emojis_text:
+            common_emojis_text = "No emojis found."
 
         await message.channel.send(
             f"**Profile for {name}**\n\n"
@@ -317,11 +328,13 @@ async def on_message(message: discord.Message):
             f"Average dot run length: **{profile['avg_dot_run_length']:.2f}**\n"
             f"Max dot run length: **{profile['max_dot_run_length']}**\n\n"
 
-            f"**Words**\n"
+            f"**Words / emojis**\n"
             f"Most common words: **{common_words_text}**\n"
-            f"Most common bigrams: **{common_bigrams_text}**"
+            f"Most common bigrams: **{common_bigrams_text}**\n"
+            f"Most common emojis: **{common_emojis_text}**\n"
+            f"Emojis per message: **{profile['emojis_per_msg']:.2f}**\n"
+            f"Messages with emojis: **{profile['emoji_message_ratio']:.2%}**"
         )
-        return
 
     # --- KOGUMINE (test, lihtsalt printimine)
     if channel_id in collecting_channels:
