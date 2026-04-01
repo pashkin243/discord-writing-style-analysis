@@ -1,5 +1,8 @@
 import os
 import asyncpg
+from dotenv import load_dotenv
+
+load_dotenv()
 
 _pool: asyncpg.Pool | None = None
 
@@ -117,7 +120,7 @@ async def get_profile(channel_id: int, author_id: int | None = None) -> dict | N
             "uppercase_ratio": uppercase_ratio
         }
 
-# sõnumite fetchimine, kuni 1000 tükki
+# sõnumite fetchimine
 async def get_messages(channel_id: int, author_id: int | None = None, limit: int | None = None) -> list[str]:
     assert _pool is not None, "DB not initialized"
 
@@ -172,3 +175,63 @@ async def get_messages(channel_id: int, author_id: int | None = None, limit: int
                 )
 
     return [row["content"] for row in rows]
+
+# detailsem info sõnumi kohta
+async def get_message_rows(
+    channel_id: int,
+    author_id: int | None = None,
+    limit: int | None = None
+) -> list[dict]:
+    assert _pool is not None, "DB not initialized"
+
+    async with _pool.acquire() as conn:
+        if author_id is None:
+            if limit is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT message_id, channel_id, author_id, content, created_at
+                    FROM messages
+                    WHERE channel_id = $1
+                    ORDER BY created_at DESC
+                    """,
+                    channel_id
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT message_id, channel_id, author_id, content, created_at
+                    FROM messages
+                    WHERE channel_id = $1
+                    ORDER BY created_at DESC
+                    LIMIT $2
+                    """,
+                    channel_id,
+                    limit
+                )
+        else:
+            if limit is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT message_id, channel_id, author_id, content, created_at
+                    FROM messages
+                    WHERE channel_id = $1 AND author_id = $2
+                    ORDER BY created_at DESC
+                    """,
+                    channel_id,
+                    author_id
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT message_id, channel_id, author_id, content, created_at
+                    FROM messages
+                    WHERE channel_id = $1 AND author_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT $3
+                    """,
+                    channel_id,
+                    author_id,
+                    limit
+                )
+
+    return [dict(row) for row in rows]
