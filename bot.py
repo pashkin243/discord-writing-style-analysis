@@ -1,4 +1,8 @@
 import discord
+import db
+import style
+import re
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -10,19 +14,29 @@ collecting_channels: set[int] = set()
 message_counts: dict[int, int] = {}
 
 # maksimaalne lugemine (tagasi)
-MAX_BACKFILL = 1000
-# abifunktsioon
+MAX_BACKFILL = 8000
+# abifunktsioon - mida (mitte) sisse lugeda
 def should_collect_text(content: str) -> bool:
     c = (content or "").strip()
     if not c:
         return False
     if c.startswith(("!", "/", ".")):
         return False
+    if re.search(r"https?://\S+", c):
+        return False
     return True
+
+#abifunktsioon - refereerida kanalitele teisest kanalist
+def get_target_channel(message: discord.Message) -> discord.abc.GuildChannel:
+    if message.channel_mentions:
+        return message.channel_mentions[0]
+    return message.channel
 
 @client.event
 async def on_ready():
-    print(f"Logged in as user {client.user}")
+    await db.init_db()
+    print(f"Logged in as user {client.user}", flush=True)
+    print("DB ready", flush=True)
 
 @client.event
 async def on_message(message: discord.Message):
@@ -30,6 +44,7 @@ async def on_message(message: discord.Message):
         return
     
     content = (message.content or "").strip()
+    tokens = content.lower().split()
     channel_id = message.channel.id
 
     # --- KÄSUD
@@ -52,47 +67,110 @@ async def on_message(message: discord.Message):
             "**!collect last [number]**\n" \
             "Collects the last X amount of messages sent in this channel. Maximum is 1000.\n\n" \
             "**!stats**\n" \
-            "Shows the total number of messages collected from this channel."
+            "Shows the total number of messages collected from this channel.\n\n" \
+            "**!profile**\n" \
+            "Shows several statistics for the messages sent in this channel. \n\n" \
+            "**!profile @User**\n" \
+            "Shows several statistics for the messages sent in this channel by the mentioned user."
+        )
+        return
+
+    # kui vaja, siis saab databaasist kõik kustutada
+    if content.lower().startswith("!wipe"):
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        await db.wipe_channel(target_channel_id)
+        message_counts[target_channel_id] = 0
+        await message.channel.send(f"Wiped all collected messages for {target_channel.mention}.")
+        return
+    
+    # !commonwords 
+    if tokens[:1] == ["!commonwords"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        target_user = None
+        if message.mentions:
+            target_user = message.mentions[0]
+        if target_user:
+            messages = await db.get_messages(target_channel_id, target_user.id)
+            name = f"{target_user.display_name} in {target_channel.mention}"
+        else:
+            messages = await db.get_messages(target_channel_id)
+            name = target_channel.mention
+        profile = style.build_style_profile(messages)
+
+        if profile is None:
+            await message.channel.send("No messages found!")
+            return
+        common_words_text = ", ".join(
+            [f"{word} ({count})" for word, count in profile["common_words"]]
+        )
+        common_bigrams_text = ", ".join(
+            [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
+        )
+        common_emojis_text = ", ".join(
+            [f"{emoji} ({count})" for emoji, count in profile["common_emojis"]]
+        )
+        if not common_emojis_text:
+            common_emojis_text = "No emojis found."
+
+        await message.channel.send(
+            f"**Common phrases for {name}**\n\n"
+            f"Top words:\n{common_words_text}\n\n"
+            f"Top phrases:\n{common_bigrams_text}\n\n"
+            f"Top emojis:\n{common_emojis_text}"
         )
         return
 
     # kogumise käsk. kui sees, saab loa koguda sõnumeid
-    if content.lower() == "!collect on":
-        collecting_channels.add(channel_id)
-        await message.channel.send("Collecting **enabled** in this channel. Type **!collect off** to disable.")
+    if tokens[:2] == ["!collect", "on"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        collecting_channels.add(target_channel_id)
+        await message.channel.send(f"Collecting **enabled** in {target_channel.mention}. Type **!collect off** {target_channel.mention} to disable.")
         return
 
     # kogumise välja lülitamine
-    if content.lower() == "!collect off":
-        collecting_channels.discard(channel_id)
-        await message.channel.send("Collecting **disabled** in this channel. Type **!collect on** to enable.")
+    if tokens[:2] == ["!collect", "off"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        collecting_channels.discard(target_channel_id)
+        await message.channel.send(f"Collecting **disabled** in {target_channel.mention}. Type **!collect on** {target_channel.mention} to enable.")
         return
     
     # kogumise staatuse kontroll
-    if content.lower() == "!collect status":
-        status = "ON" if channel_id in collecting_channels else "OFF"
-        await message.channel.send(f"Collecting in this channel currently: **{status}**")
+    if tokens[:2] == ["!collect", "status"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        status = "ON" if target_channel_id in collecting_channels else "OFF"
+        await message.channel.send(f"Collecting in {target_channel.mention} currently: **{status}**")
         return
     
     # stats - mitu sõnumit kogutud
-    if content.lower() == "!stats":
-        count = message_counts.get(channel_id, 0)
-        await message.channel.send(f"Messages collected in this channel: **{count}**")
+    if tokens[:1] == ["!stats"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        count = await db.count_messages(target_channel_id)
+        await message.channel.send(f"Messages collected in {target_channel.mention}: **{count}**")
         return
     
     # viimaste sõnumite kogumine
-    if content.lower().startswith("!collect last"):
-        parts = content.split()
-        # vea handling
-        if len(parts) != 3:
-            await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150*)")
+    if tokens[:2] == ["!collect", "last"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+
+        tokens = content.split()
+        number_token = None
+        for token in tokens:
+            if token.isdigit():
+                number_token = token
+                break
+        
+        if number_token is None:
+            await message.channel.send("Invalid command. Try: **!collect last [number]** (example: *!collect last 150 #channel*)")
             return
         
-        try:
-            n = int(parts[2])
-        except ValueError:
-            await message.channel.send("Invalid command. Provide a valid number.")
-            return
+        n = int(number_token)
         
         if n < 1:
             await message.channel.send("Number must be at least 1.")
@@ -104,7 +182,7 @@ async def on_message(message: discord.Message):
         
         collected = 0
         # fetchib kanali ajaloo, seatud limiidiga
-        async for msg in message.channel.history(limit=n):
+        async for msg in target_channel.history(limit=n):
             if msg.author.bot:
                 continue # ei kogu boti saadetut
             if msg.id == message.id:
@@ -112,24 +190,169 @@ async def on_message(message: discord.Message):
             text = (msg.content or "").strip()
             if not should_collect_text(text):
                 continue
+            inserted = await db.insert_message(
+                message_id=msg.id,
+                guild_id=msg.guild.id if msg.guild else None,
+                channel_id=target_channel_id,
+                author_id=msg.author.id,
+                content=text,
+                created_at=msg.created_at,
+            )
+            if not inserted:
+                continue
 
-            message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
+            message_counts[target_channel_id] = message_counts.get(target_channel_id, 0) + 1
             collected += 1
 
             print(
-                f"[BACKFILL #{message_counts[channel_id]}] "
+                f"[BACKFILL #{message_counts[target_channel_id]}] "
                 f"#{msg.channel} | {msg.author}: {text}",
                 flush=True
             )
         
-        await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in this channel.")
+        await message.channel.send(f"Backfilled **{collected}** messages from the last **{n}** in {target_channel.mention}.")
         return
     
+    # kogu kõik sõnumid kanalis
+    if tokens[:2] == ["!collect", "all"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+        starting_count = await db.count_messages(target_channel_id)
+        collected = 0
+        processed = 0
+        progress_step = 10000
+        next_progress_mark = ((starting_count // progress_step) + 1) * progress_step
+
+        await message.channel.send(
+            f"Collecting all messages from {target_channel.mention}. This may take a **while**..."
+        )
+
+        async for msg in target_channel.history(limit=None):
+            processed += 1
+            if processed % 500 == 0:
+                await asyncio.sleep(1)
+            if msg.author.bot:
+                continue
+            if msg.id == message.id:
+                continue
+            text = (msg.content or "").strip()
+            if not should_collect_text(text):
+                continue
+
+            inserted = await db.insert_message(
+                message_id=msg.id,
+                guild_id=msg.guild.id if msg.guild else None,
+                channel_id=target_channel_id,
+                author_id=msg.author.id,
+                content=text,
+                created_at=msg.created_at,
+            )
+            if not inserted:
+                continue
+
+            message_counts[target_channel_id] = message_counts.get(target_channel_id, 0) + 1
+            collected += 1
+
+            current_total = starting_count + collected
+            if current_total >= next_progress_mark:
+                await message.channel.send(
+                    f"Stored **{current_total}** messages for {target_channel.mention} so far... continuing."
+                )
+                next_progress_mark += progress_step
+
+        await message.channel.send(
+            f"Done. Newly collected in this run: **{collected}**. "
+            f"Total stored for {target_channel.mention}: **{starting_count + collected}**."
+        )
+        return
+    
+    #!profile (v2), näitab kanali või isiku sõnumite statistikat
+    if tokens[:1] == ["!profile"]:
+        target_channel = get_target_channel(message)
+        target_channel_id = target_channel.id
+
+        target_user = None
+        # kas kasutaja on mainitud?
+        if message.mentions:
+            target_user = message.mentions[0]
+        if target_user:
+            messages = await db.get_messages(target_channel_id, target_user.id)
+            name = f"{target_user.display_name} in {target_channel.mention}"
+        else:
+            messages = await db.get_messages(target_channel_id)
+            name = target_channel.mention
+        
+        #style.py integratsioon
+        profile = style.build_style_profile(messages)
+
+        if profile is None:
+            await message.channel.send("No messages found!")
+            return
+        common_words_text = ", ".join(
+            [f"{word} ({count})" for word, count in profile["common_words"]]
+        )
+        common_bigrams_text = ", ".join(
+            [f"{w1} {w2} ({count})" for (w1, w2), count in profile["common_bigrams"]]
+        )
+        common_emojis_text = ", ".join(
+            [f"{emoji} ({count})" for emoji, count in profile["common_emojis"]]
+        )
+        if not common_emojis_text:
+            common_emojis_text = "No emojis found."
+
+        await message.channel.send(
+            f"**Profile for {name}**\n\n"
+            f"Total messages: **{profile['messages']}**\n"
+            f"Average message length: **{profile['avg_length']:.1f} characters**\n"
+            f"Average words per message: **{profile['avg_words']:.1f}**\n"
+            f"Uppercase ratio: **{profile['uppercase_ratio']:.2f}**\n\n"
+
+            f"**Punctuation**\n"
+            f"Exclamation marks (!) per message: **{profile['exclamations_per_msg']:.2f}**\n"
+            f"Question marks (?) per message: **{profile['questions_per_msg']:.2f}**\n"
+            f"Periods (.) per message: **{profile['periods_per_msg']:.2f}**\n"
+            f"Commas (,) per message: **{profile['commas_per_msg']:.2f}**\n"
+            f"Messages with commas: **{profile['comma_message_ratio']:.2%}**\n"
+            f"Average newlines per message: **{profile['avg_newlines_per_msg']:.2f}**\n\n"
+
+            f"**Punctuation run style**\n"
+            f"Exclamation mark run rate: **{profile['exclamation_run_rate']:.2%}**\n"
+            f"Average exclamation mark run length: **{profile['avg_exclamation_run_length']:.2f}**\n"
+            f"Max exclamation mark run length: **{profile['max_exclamation_run_length']}**\n\n"
+
+            f"Question mark run rate: **{profile['question_run_rate']:.2%}**\n"
+            f"Average question mark run length: **{profile['avg_question_run_length']:.2f}**\n"
+            f"Max question mark run length: **{profile['max_question_run_length']}**\n\n"
+
+            f"Dot run rate: **{profile['dot_run_rate']:.2%}**\n"
+            f"Average dot run length: **{profile['avg_dot_run_length']:.2f}**\n"
+            f"Max dot run length: **{profile['max_dot_run_length']}**\n\n"
+
+            f"**Words / emojis**\n"
+            f"Most common words: **{common_words_text}**\n"
+            f"Most common bigrams: **{common_bigrams_text}**\n"
+            f"Most common emojis: **{common_emojis_text}**\n"
+            f"Emojis per message: **{profile['emojis_per_msg']:.2f}**\n"
+            f"Messages with emojis: **{profile['emoji_message_ratio']:.2%}**"
+        )
+
     # --- KOGUMINE (test, lihtsalt printimine)
     if channel_id in collecting_channels:
         # käskude eemaldamine
         if not should_collect_text(content):
             return
+        # db jaoks plokk
+        inserted = await db.insert_message(
+            message_id=message.id,
+            guild_id=message.guild.id if message.guild else None,
+            channel_id=channel_id,
+            author_id=message.author.id,
+            content=content,
+            created_at=message.created_at,
+        )
+        if not inserted:
+            return
+        # lugemine
         message_counts[channel_id] = message_counts.get(channel_id, 0) + 1
         print(
             f"[COLLECT #{message_counts[channel_id]}] "
