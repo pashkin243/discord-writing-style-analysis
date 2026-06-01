@@ -359,3 +359,5 @@ async def on_message(message: discord.Message):
             f"#{message.channel} | {message.author}: {content}",
             flush=True
         )
+
+# Kasutatud AI

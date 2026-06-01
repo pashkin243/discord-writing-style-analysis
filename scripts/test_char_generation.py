@@ -27,3 +27,5 @@ if __name__ == "__main__":
     print("=== GENERATED ===")
     for i in range(10):
         print(f"\n[{i+1}] {generate_nonempty(model, stoi, itos, USER_TOKEN + ' ')}")
+
+# Kasutatud AI

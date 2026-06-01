@@ -235,3 +235,5 @@ async def get_message_rows(
                 )
 
     return [dict(row) for row in rows]
+
+# Kasutatud AI

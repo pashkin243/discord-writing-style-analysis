@@ -260,3 +260,5 @@ def train_model(
     print(f"\nSaved best model to {output_dir / 'char_lstm_best.pt'}")
     print(f"Saved training history to {output_dir / 'training_history.json'}")
     print(f"Saved training summary to {output_dir / 'training_summary.json'}")
+
+# Kasutatud AI

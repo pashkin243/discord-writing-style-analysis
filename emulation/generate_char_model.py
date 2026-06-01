@@ -84,3 +84,5 @@ def clean_generated_output(text, prompt):
         text = text[len(prompt):]
 
     return text.strip()
+
+# Kasutatud AI

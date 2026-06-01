@@ -145,3 +145,5 @@ def build_style_profile(messages: list[str]) -> dict | None:
         "emojis_per_msg": emojis_per_msg,
         "emoji_message_ratio": emoji_message_ratio,
     }
+
+# Kasutatud AI

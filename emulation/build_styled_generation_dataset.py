@@ -75,3 +75,5 @@ def build_generation_dataset(input_path: str, output_dir: str):
     write_lines(output_dir / "generation_test.txt", rows_to_lines(test))
 
     print("Generation dataset built.")
+
+# Kasutatud AI
